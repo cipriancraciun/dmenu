@@ -34,6 +34,7 @@ static void match(void);
 static size_t nextrune(int incr);
 static void paste(void);
 static void readstdin(void);
+static void readmsgfile(void);
 static void readfile(Item **items, int maxitems, FILE *stream);
 static void run(void);
 static void setup(void);
@@ -52,12 +53,15 @@ static const char *normbgcolor = "#cccccc";
 static const char *normfgcolor = "#000000";
 static const char *selbgcolor  = "#0066ff";
 static const char *selfgcolor  = "#ffffff";
+static const char *msgfile = NULL;
+static int msglines = 0;
 static unsigned long normcol[ColLast];
 static unsigned long selcol[ColLast];
 static Atom utf8;
 static Bool topbar = True;
 static DC *dc;
 static Item *items = NULL;
+static Item *msgitems = NULL;
 static Item *matches, *sel;
 static Item *prev, *curr, *next;
 static Window root, win;
@@ -98,12 +102,21 @@ main(int argc, char *argv[]) {
 			selbgcolor = argv[++i];
 		else if(!strcmp(argv[i], "-sf"))
 			selfgcolor = argv[++i];
+		else if(!strcmp(argv[i], "-ol"))
+			msglines = atoi(argv[++i]);
+		else if(!strcmp(argv[i], "-of"))
+			msgfile = argv[++i];
 		else
 			usage();
+
+	if((!msgfile && msglines!=0) || (lines < 0) || (monitor < -1) || (msglines < 0))
+		usage();
 
 	dc = initdc();
 	initfont(dc, font);
 	readstdin();
+	if(msgfile)
+		readmsgfile();
 	setup();
 	run();
 
@@ -148,6 +161,13 @@ drawmenu(void) {
 	dc->h = bh;
 	drawrect(dc, 0, 0, mw, mh, True, BG(dc, normcol));
 
+	if(msglines) {
+		dc->w = mw;
+		for(item = msgitems, curpos = 0; item && curpos < msglines; item = item->next, curpos++) {
+			drawtext(dc, item->text, selcol);
+			dc->y += dc->h;
+		}
+	}
 	if(prompt) {
 		dc->w = promptw;
 		drawtext(dc, prompt, selcol);
@@ -440,6 +460,21 @@ readstdin(void) {
 }
 
 void
+readmsgfile(void) {
+	Item *item;
+	FILE *stream;
+	stream = fopen (msgfile, "r");
+	if (!stream)
+		eprintf("cannot open message file %s\n", msgfile);
+	readfile(&msgitems, msglines, stream);
+	fclose(stream);
+	
+	msglines = 0;
+	for(item = msgitems; item; item = item->next)
+		msglines++;
+}
+
+void
 readfile(Item **items, int maxlines, FILE *stream) {
 	char buf[sizeof text], *p;
 	Item *item, **end;
@@ -501,7 +536,7 @@ setup(void) {
 	/* menu geometry */
 	bh = dc->font.height + 2;
 	lines = MAX(lines, 0);
-	mh = (lines + 1) * bh;
+	mh = (msglines + lines + 1) * bh;
 #ifdef XINERAMA
 	if((info = XineramaQueryScreens(dc->dpy, &n))) {
 		int i, di;
@@ -545,7 +580,8 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
+	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt]\n"
+	      "             [-of message-file] [-ol message-lines] [-fn font]\n"
 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }

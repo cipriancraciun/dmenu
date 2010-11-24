@@ -11,6 +11,10 @@ dmenu \- dynamic menu
 .IR monitor ]
 .RB [ \-p
 .IR prompt ]
+.RB [ \-of
+.IR message-file ]
+.RB [ \-ol
+.IR message-lines ]
 .RB [ \-fn
 .IR font ]
 .RB [ \-nb
@@ -58,6 +62,12 @@ dmenu appears on the given Xinerama screen.
 .TP
 .BI \-p " prompt"
 defines the prompt to be displayed to the left of the input field.
+.TP
+.BI \-of " message-file"
+defines the file from which a message is going to be displayed before the prompt.
+.TP
+.BI \-ol " message-lines"
+defines the maximum number of lines of message to display before the prompt.
 .TP
 .BI \-fn " font"
 defines the font or font set used.
