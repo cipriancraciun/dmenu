@@ -34,6 +34,7 @@ static void match(void);
 static size_t nextrune(int incr);
 static void paste(void);
 static void readstdin(void);
+static void readfile(Item **items, int maxitems, FILE *stream);
 static void run(void);
 static void setup(void);
 static void usage(void);
@@ -432,10 +433,19 @@ paste(void) {
 
 void
 readstdin(void) {
+	Item *item;
+	readfile(&items, 0, stdin);
+	for(item = items; item; item = item->next)
+		inputw = MAX(inputw, textw(dc, item->text));
+}
+
+void
+readfile(Item **items, int maxlines, FILE *stream) {
 	char buf[sizeof text], *p;
 	Item *item, **end;
+	int count;
 
-	for(end = &items; fgets(buf, sizeof buf, stdin); *end = item, end = &item->next) {
+	for(end = items, count = 0; (!maxlines || count < maxlines) && fgets(buf, sizeof buf, stream); *end = item, end = &item->next, count++) {
 		if((p = strchr(buf, '\n')))
 			*p = '\0';
 		if(!(item = malloc(sizeof *item)))
@@ -443,7 +453,6 @@ readstdin(void) {
 		if(!(item->text = strdup(buf)))
 			eprintf("cannot strdup %u bytes\n", strlen(buf)+1);
 		item->next = item->left = item->right = NULL;
-		inputw = MAX(inputw, textw(dc, item->text));
 	}
 }
 
