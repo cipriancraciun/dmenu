@@ -55,6 +55,7 @@ static unsigned long normcol[ColLast];
 static unsigned long selcol[ColLast];
 static Atom utf8;
 static Bool topbar = True;
+static Bool choice = False;
 static DC *dc;
 static Item *items = NULL;
 static Item *matches, *sel;
@@ -76,6 +77,8 @@ main(int argc, char *argv[]) {
 		}
 		else if(!strcmp(argv[i], "-b"))
 			topbar = False;
+		else if(!strcmp(argv[i], "-c"))
+			choice = True;
 		else if(!strcmp(argv[i], "-i"))
 			fstrncmp = strncasecmp;
 		else if(i == argc-1)
@@ -152,12 +155,19 @@ drawmenu(void) {
 		drawtext(dc, prompt, selcol);
 		dc->x = dc->w;
 	}
-	dc->w = (lines > 0 || !matches) ? mw - dc->x : inputw;
-	drawtext(dc, text, normcol);
-	if((curpos = textnw(dc, text, cursor) + dc->h/2 - 2) < dc->w)
-		drawrect(dc, curpos, 2, 1, dc->h - 4, True, FG(dc, normcol));
+	if(!choice) {
+		dc->w = (lines > 0 || !matches) ? mw - dc->x : inputw;
+		drawtext(dc, text, normcol);
+		if((curpos = textnw(dc, text, cursor) + dc->h/2 - 2) < dc->w)
+			drawrect(dc, curpos, 2, 1, dc->h - 4, True, FG(dc, normcol));
+	}
 
 	if(lines > 0) {
+		if(choice) {
+			if(prompt)
+				dc->x += 8;
+			dc->y = -dc->h;
+		}
 		dc->w = mw - dc->x;
 		for(item = curr; item != next; item = item->right) {
 			dc->y += dc->h;
@@ -255,6 +265,8 @@ keypress(XKeyEvent *ev) {
 			ksym = XK_Return;
 			break;
 		case XK_k:  /* delete right */
+			if(choice)
+				return;
 			text[cursor] = '\0';
 			match();
 			break;
@@ -268,6 +280,8 @@ keypress(XKeyEvent *ev) {
 			insert(NULL, 0 - cursor);
 			break;
 		case XK_w:  /* delete word */
+			if(choice)
+				return;
 			while(cursor > 0 && text[nextrune(-1)] == ' ')
 				insert(NULL, nextrune(-1) - cursor);
 			while(cursor > 0 && text[nextrune(-1)] != ' ')
@@ -292,7 +306,7 @@ keypress(XKeyEvent *ev) {
 			insert(NULL, nextrune(-1) - cursor);
 		break;
 	case XK_End:
-		if(cursor < len) {
+		if(!choice && cursor < len) {
 			cursor = len;
 			break;
 		}
@@ -306,7 +320,7 @@ keypress(XKeyEvent *ev) {
 	case XK_Escape:
 		exit(EXIT_FAILURE);
 	case XK_Home:
-		if(sel == matches) {
+		if(!choice && sel == matches) {
 			cursor = 0;
 			break;
 		}
@@ -314,7 +328,7 @@ keypress(XKeyEvent *ev) {
 		calcoffsets();
 		break;
 	case XK_Left:
-		if(cursor > 0 && (!sel || !sel->left || lines > 0)) {
+		if(!choice && cursor > 0 && (!sel || !sel->left || lines > 0)) {
 			cursor = nextrune(-1);
 			break;
 		}
@@ -340,11 +354,14 @@ keypress(XKeyEvent *ev) {
 		break;
 	case XK_Return:
 	case XK_KP_Enter:
-		fputs((sel && !(ev->state & ShiftMask)) ? sel->text : text, stdout);
+		if(choice)
+			fputs(sel ? sel->text : "", stdout);
+		else
+			fputs((sel && !(ev->state & ShiftMask)) ? sel->text : text, stdout);
 		fflush(stdout);
 		exit(EXIT_SUCCESS);
 	case XK_Right:
-		if(cursor < len) {
+		if(!choice && cursor < len) {
 			cursor = nextrune(+1);
 			break;
 		}
@@ -357,7 +374,7 @@ keypress(XKeyEvent *ev) {
 		}
 		break;
 	case XK_Tab:
-		if(!sel)
+		if(choice || !sel)
 			return;
 		strncpy(text, sel->text, sizeof text);
 		cursor = strlen(text);
@@ -443,7 +460,8 @@ readstdin(void) {
 		if(!(item->text = strdup(buf)))
 			eprintf("cannot strdup %u bytes\n", strlen(buf)+1);
 		item->next = item->left = item->right = NULL;
-		inputw = MAX(inputw, textw(dc, item->text));
+		if(!choice)
+			inputw = MAX(inputw, textw(dc, item->text));
 	}
 }
 
@@ -492,7 +510,10 @@ setup(void) {
 	/* menu geometry */
 	bh = dc->font.height + 2;
 	lines = MAX(lines, 0);
-	mh = (lines + 1) * bh;
+	if(choice && lines > 0)
+		mh = lines * bh;
+	else
+		mh = (lines + 1) * bh;
 #ifdef XINERAMA
 	if((info = XineramaQueryScreens(dc->dpy, &n))) {
 		int i, di;
