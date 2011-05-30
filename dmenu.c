@@ -66,6 +66,7 @@ static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
 int
 main(int argc, char *argv[]) {
 	int i;
+	Bool fastgrab = False;
 
 	progname = "dmenu";
 	for(i = 1; i < argc; i++)
@@ -78,6 +79,8 @@ main(int argc, char *argv[]) {
 			topbar = False;
 		else if(!strcmp(argv[i], "-i"))
 			fstrncmp = strncasecmp;
+		else if(!strcmp(argv[i], "-f"))
+			fastgrab = True;
 		else if(i == argc-1)
 			usage();
 		/* double flags */
@@ -103,7 +106,19 @@ main(int argc, char *argv[]) {
 	dc = initdc();
 	initfont(dc, font);
 	readstdin();
-	setup();
+
+
+	if(fastgrab)
+		setup(); /* grab X _now_ */
+
+	readstdin();
+
+	if(!fastgrab)
+		setup();
+	else
+		match(); /* need to re-match now we've read the input */
+
+
 	run();
 
 	return EXIT_FAILURE;  /* should not reach */
@@ -536,7 +551,7 @@ setup(void) {
 
 void
 usage(void) {
-	fputs("usage: dmenu [-b] [-i] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
+	fputs("usage: dmenu [-b] [-i] [-f] [-l lines] [-m monitor] [-p prompt] [-fn font]\n"
 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
 	exit(EXIT_FAILURE);
 }
